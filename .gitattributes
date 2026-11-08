@@ -1,0 +1,13 @@
+# Normalize text in Git history and preserve Unix line endings where required.
+* text=auto
+
+# Files executed or processed by Linux containers.
+*.sh text eol=lf
+*.Dockerfile text eol=lf
+*.py text eol=lf
+*.sql text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+
+# Keep the employer's original task files byte-for-byte unchanged.
+task/** -text

@@ -1,0 +1,19 @@
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# Local data and ML artifacts
+*.log
+artifacts/
+
+# Editors / OS
+.vscode/
+.DS_Store
+Thumbs.db

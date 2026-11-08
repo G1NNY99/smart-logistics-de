@@ -1,0 +1,83 @@
+# Run from the repository root with: docker compose up --build -d
+# PostgreSQL source initialization only happens when postgres_data is empty.
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: deals_bigdata
+      POSTGRES_USER: logistics
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Create .env with POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./task/sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./task/sql/synthetic.sql:/docker-entrypoint-initdb.d/02-synthetic.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  etl:
+    build:
+      context: .
+      dockerfile: docker/etl.Dockerfile
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: deals_bigdata
+      PGUSER: logistics
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Create .env with POSTGRES_PASSWORD}
+      ETL_START_DATE: ${ETL_START_DATE:-2023-01-01}
+      ETL_END_DATE: ${ETL_END_DATE:-2027-12-31}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  # One-shot DWH job: starts ONLY after ETL exits successfully.
+  # "docker compose up" therefore orchestrates db -> etl -> mart.
+  mart:
+    image: postgres:17
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: deals_bigdata
+      PGUSER: logistics
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Create .env with POSTGRES_PASSWORD}
+      PGCONNECT_TIMEOUT: "20"
+    volumes:
+      - ./sql:/opt/pipeline/sql:ro
+      - ./docker/mart-run.sh:/opt/pipeline/mart-run.sh:ro
+    entrypoint: ["/bin/sh", "/opt/pipeline/mart-run.sh"]
+    depends_on:
+      etl:
+        condition: service_completed_successfully
+    restart: "no"
+
+
+  # One-shot ML job: only starts after a successful DWH refresh.
+  # Included in default `docker compose up` (no profile required).
+  ml:
+    build:
+      context: .
+      dockerfile: docker/ml.Dockerfile
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: deals_bigdata
+      PGUSER: logistics
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Create .env with POSTGRES_PASSWORD}
+      ML_RANDOM_SEED: "20261026"
+      ML_ITERATIONS: "350"
+      ML_THREADS: "4"
+    volumes:
+      - ./artifacts:/app/artifacts
+    depends_on:
+      mart:
+        condition: service_completed_successfully
+    restart: "no"
+
+volumes:
+  postgres_data:

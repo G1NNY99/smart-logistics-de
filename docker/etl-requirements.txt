@@ -1,0 +1,2 @@
+# PostgreSQL driver (prebuilt wheels for Python 3.11 in a Linux container).
+psycopg[binary]>=3.2,<3.3
