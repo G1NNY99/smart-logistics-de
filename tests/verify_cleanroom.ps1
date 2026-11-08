@@ -1,5 +1,7 @@
 # Full end-to-end test on a FRESH, separate Docker Compose project.
 # Windows PowerShell 5.1+; run from any directory. Does NOT delete volumes.
+# -WithoutEnv: test strict one-command bootstrap with no .env or POSTGRES_PASSWORD.
+param([switch] $WithoutEnv)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
@@ -11,8 +13,8 @@ function Invoke-Docker {
 
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $envFile = Join-Path $repo '.env'
-if (-not (Test-Path -LiteralPath $envFile)) {
-    throw 'Missing .env. Copy .env.example to .env and set POSTGRES_PASSWORD first.'
+if (-not $WithoutEnv -and -not (Test-Path -LiteralPath $envFile)) {
+    throw 'Missing .env for standard audit. Use -WithoutEnv to test default bootstrap.'
 }
 $sourceCompose = Join-Path $repo 'compose.yaml'
 if (-not (Test-Path -LiteralPath $sourceCompose)) { throw 'compose.yaml is missing.' }
@@ -34,7 +36,7 @@ foreach ($fileName in @('compose.yaml', 'README.md', '.env.example', '.gitignore
     if (-not (Test-Path -LiteralPath $src)) { throw "Missing source file: $src" }
     Copy-Item -LiteralPath $src -Destination (Join-Path $auditRoot $fileName) -Force
 }
-# Reuse the original .env as Compose input; do not duplicate secrets in TEMP.
+# Standard audit reuses original .env (not copied); -WithoutEnv verifies bootstrap without it.
 
 # Remove host port publication in THE TEMPORARY COPY ONLY. Network remains private.
 $auditCompose = Join-Path $auditRoot 'compose.yaml'
@@ -46,10 +48,14 @@ if ([regex]::Matches($yaml, $portPattern).Count -ne 1) {
 $yaml = [regex]::Replace($yaml, $portPattern, '')
 [System.IO.File]::WriteAllText($auditCompose, $yaml, [System.Text.UTF8Encoding]::new($false))
 
-$composeArgs = @(
-    'compose', '-p', $auditName, '--project-directory', $auditRoot,
-    '--env-file', $envFile, '-f', $auditCompose
-)
+$composeArgs = @('compose', '-p', $auditName, '--project-directory', $auditRoot)
+if (-not $WithoutEnv) { $composeArgs += @('--env-file', $envFile) }
+$composeArgs += @('-f', $auditCompose)
+
+# Environment variables can override Compose defaults. Clear only in THIS script's
+# process for the no-env check, and restore in finally (original .env untouched).
+$previousPassword = [Environment]::GetEnvironmentVariable('POSTGRES_PASSWORD', 'Process')
+if ($WithoutEnv) { [Environment]::SetEnvironmentVariable('POSTGRES_PASSWORD', $null, 'Process') }
 Write-Host "[INFO] Audit compose project: $auditName"
 Write-Host "[INFO] Isolated audit source: $auditRoot"
 Write-Host '[INFO] The original project, its port 55432 and its Docker volume remain unchanged.'
@@ -105,6 +111,9 @@ try {
 }
 finally {
     Pop-Location
+    if ($WithoutEnv) {
+        [Environment]::SetEnvironmentVariable('POSTGRES_PASSWORD', $previousPassword, 'Process')
+    }
     Write-Host "[INFO] Audit Compose project: $auditName"
     Write-Host "[INFO] Audit source directory: $auditRoot"
     Write-Host '[INFO] Audit resources were not removed automatically; original resources were not modified.'

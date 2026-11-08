@@ -21,6 +21,14 @@ try {
     if ($hash1 -ne $hash2) { throw 'compose.yaml and docker-compose.yml differ; keep them identical.' }
     Write-Host '[PASS] Both Compose filenames have identical content'
 
+    # Clean-room one-command requirement: no mandatory .env file.
+    $composeText = [System.IO.File]::ReadAllText((Join-Path $repo 'compose.yaml'))
+    $fallback = '${POSTGRES_PASSWORD:-smart_logistics_demo_only}'
+    if ([regex]::Matches($composeText, [regex]::Escape($fallback)).Count -ne 4) {
+        throw 'One-command default POSTGRES_PASSWORD must be used in db, etl, mart and ml.'
+    }
+    Write-Host '[PASS] Compose has a consistent local demo fallback for no-env first run' 
+
     $gitignore = [System.IO.File]::ReadAllText((Join-Path $repo '.gitignore'))
     $dockerignore = [System.IO.File]::ReadAllText((Join-Path $repo '.dockerignore'))
     if ($gitignore -notmatch '(?m)^\.env$' -or $gitignore -notmatch '(?m)^artifacts/$' -or

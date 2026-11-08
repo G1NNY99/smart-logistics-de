@@ -1,4 +1,5 @@
-# Run from the repository root with: docker compose up --build -d
+# First run on a clean machine: docker compose up (no .env required).
+# The fallback PostgreSQL password is for localhost demo use ONLY. Set POSTGRES_PASSWORD in .env for other uses.
 # PostgreSQL source initialization only happens when postgres_data is empty.
 services:
   db:
@@ -6,7 +7,7 @@ services:
     environment:
       POSTGRES_DB: deals_bigdata
       POSTGRES_USER: logistics
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Create .env with POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smart_logistics_demo_only}
     ports:
       - "127.0.0.1:55432:5432"
     volumes:
@@ -28,7 +29,7 @@ services:
       PGPORT: "5432"
       PGDATABASE: deals_bigdata
       PGUSER: logistics
-      PGPASSWORD: ${POSTGRES_PASSWORD:?Create .env with POSTGRES_PASSWORD}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-smart_logistics_demo_only}
       ETL_START_DATE: ${ETL_START_DATE:-2023-01-01}
       ETL_END_DATE: ${ETL_END_DATE:-2027-12-31}
     depends_on:
@@ -45,7 +46,7 @@ services:
       PGPORT: "5432"
       PGDATABASE: deals_bigdata
       PGUSER: logistics
-      PGPASSWORD: ${POSTGRES_PASSWORD:?Create .env with POSTGRES_PASSWORD}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-smart_logistics_demo_only}
       PGCONNECT_TIMEOUT: "20"
     volumes:
       - ./sql:/opt/pipeline/sql:ro
@@ -68,7 +69,7 @@ services:
       PGPORT: "5432"
       PGDATABASE: deals_bigdata
       PGUSER: logistics
-      PGPASSWORD: ${POSTGRES_PASSWORD:?Create .env with POSTGRES_PASSWORD}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-smart_logistics_demo_only}
       ML_RANDOM_SEED: "20261026"
       ML_ITERATIONS: "350"
       ML_THREADS: "4"
